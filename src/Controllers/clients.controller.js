@@ -1,12 +1,12 @@
-import { stripHtlm } from "string-strip-html";
+import { stripHtml } from 'string-strip-html';
 import db from '../../config/db.js';
 
 export const createClient = async (req, res) => {
     const { name, phone, address } = req.body;
     const client = {
-        name: stripHtlm(name).result.trim(),
-        phone: stripHtlm(phone).result.trim(),
-        address: stripHtlm(address).result.trim()
+        name: stripHtml(name).result.trim(),
+        phone: stripHtml(phone).result.trim(),
+        address: stripHtml(address).result.trim()
     };
 
     try {

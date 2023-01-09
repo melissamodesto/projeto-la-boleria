@@ -1,6 +1,6 @@
-import cakeSchema from "../Schemas/cake.schema";
+import cakeSchema from "../Schemas/cakes.schema.js";
 
-const validateCake = (req, res, next) => {
+export const validateCake = (req, res, next) => {
 
     const {error} = cakeSchema.validate(req.body);
     

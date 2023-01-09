@@ -1,4 +1,4 @@
-import db from "../../config/db";
+import db from "../../config/db.js";
 import { stripHtml } from "string-strip-html";
 
 export const newCake = async (req, res) => {

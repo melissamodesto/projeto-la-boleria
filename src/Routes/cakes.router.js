@@ -1,9 +1,9 @@
 import { Router } from "express";
-import { newCake } from "../Controllers/cakes.controller";
-import { validateNewCake } from "../Middlewares/cakes.middleware";
+import { newCake } from "../Controllers/cakes.controller.js";
+import { validateCake } from "../Middlewares/cakes.middlewares.js";
 
-const cakesRouter = Router();
+export const cakesRouter = Router();
 
-cakesRouter.post("/cakes", validateNewCake, newCake);
+cakesRouter.post("/cakes", validateCake, newCake);
 
 export default cakesRouter;
