@@ -3,13 +3,11 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const {Pool} = pg;
+const { Pool } = pg;
 
 const db = new Pool({
-    connectionString: process.env.DATABASE_URL,
-}
+        connectionString: process.env.DATABASE_URL
+});
 
-
-);
 
 export default db;  
