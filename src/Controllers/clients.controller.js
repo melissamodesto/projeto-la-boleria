@@ -1,25 +1,46 @@
-import { stripHtml } from 'string-strip-html';
-import db from '../../config/db.js';
+import repository from "../../src/Repositories/repository.js";
 
-export const createClient = async (req, res) => {
-    const { name, phone, address } = req.body;
-    const client = {
-        name: stripHtml(name).result.trim(),
-        phone: stripHtml(phone).result.trim(),
-        address: stripHtml(address).result.trim()
-    };
+export async function createClient (req, res) {
+  const client = req.body;
 
-    try {
-        await db.query(`
-            INSERT INTO clients (name, phone, address)
-            VALUES ($1, $2, $3)
-        `, [client.name, client.phone, client.address]);
+  try {
+    
+    await repository.createClient(client.name, client.address, client.phone);
 
-        return res.sendStatus(201);
-    } catch (err) {
-        console.error(err);
-        return res.sendStatus(500);
-    }
+    return res.status(201).send("Client created successfully");
+
+  } catch (err) {
+    console.error(err.message);
+    res.sendStatus(500);
+  }
 }
 
-export default createClient;
+export async function clientOrders (req, res) {
+  const clientId = req.params.id;
+
+  try {
+    const ordersData = await repository.getOrdersByClientId(clientId);
+
+    if (ordersData.rowCount === 0) {
+      return res.status(404).send("No orders found");
+    }
+
+    const orders = ordersData.rows.map(
+        order => (
+            {
+                orderId: order.orderId,
+                quantity: order.quantity,
+                createdAt: order.createdAt,
+                totalPrice: order.totalPrice,
+                cakeName: order.cakeName
+            }
+        )
+    )
+
+    res.status(200).json(orders.rows);
+    
+  } catch (err) {
+    console.error(err.message);
+    res.sendStatus(500);
+  }
+}

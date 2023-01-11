@@ -1,34 +1,20 @@
-import db from "../../config/db.js";
-import { stripHtml } from "string-strip-html";
+import repository from "../../src/Repositories/repository.js";
 
 export const newCake = async (req, res) => {
-  
-    const {name, price, description, image} = req.body;
 
-    const cakes = { 
-        name: stripHtml(name).result.trim(),
+  const cake = req.body;
 
-        price: stripHtml(price).result.trim(), 
-        
-        description: stripHtml(description).result.trim(), 
-        
-        image: stripHtml(image).result.trim() 
-    };
-    
   try {
-    const registeredCake = await db.query(`
-    SELECT name 
-    FROM cakes
-    WHERE name = $1
-    `, [cakes.name]);
-
-    if (registeredCake.rowCount !== 0) {
-        return res.status(401).json("Cake already exists");
-    }
+    const registeredCake = await repository.getCakeByName(cake.name);
     
-    await db.query(`INSERT INTO cakes (name, price, description, image) VALUES ($1, $2, $3, $4) RETURNING *`, [cakes.name, cakes.price, cakes.description, cakes.image]);
+    if (registeredCake.rowCount !== 0) {
+      return res.status(409).json("Cake already exists");
+    }
 
-    res.sendStatus(201);
+    await repository.createCake(cake.name, cake.price, cake.description, cake.image);
+
+    res.status(201).send("Cake created successfully");
+    
   } catch (err) {
     console.error(err.message);
     res.sendStatus(500);

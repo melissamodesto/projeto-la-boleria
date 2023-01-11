@@ -1,178 +1,165 @@
-import db from "../../config/db.js";
-import dayjs from "dayjs";
+import repository from "../../src/Repositories/repository.js";
 
-export const createOrder = async (req, res) => {
-    const { clientId, cakeId, quantity, totalPrice } = req.body;
+export async function createOrder(req, res) {
+
+    const { clientId, cakeId, quantity } = req.body;
 
     try {
+        const client = await repository.getClientById(clientId);
 
-        const createdAt = dayjs().format('YYYY-MM-DD HH:mm');
-
-        const clientExists = await db.query(`
-            SELECT * FROM clients WHERE id = $1
-        `, [clientId]);
-
-        if (clientExists.rows.length === 0) {
-            return res.sendStatus(404);
+        if (client.rowCount === 0) {
+            return res.status(404).send("Client not found");
         }
 
-        const cakeExists = await db.query(`
-            SELECT * FROM cakes WHERE id = $1
-        `, [cakeId]);
+        const cakePrice = await repository.getCakePriceById(cakeId);
 
-        if (cakeExists.rows.length === 0) {
-            return res.sendStatus(404);
+        if (cakePrice.rowCount === 0) {
+            return res.status(404).send("Cake not found");
         }
 
-        await db.query(`
-            INSERT INTO orders ("clientId", "cakeId", "quantity", "totalPrice", "createdAt")
-            VALUES ($1, $2, $3, $4, $5);
-        `, [clientId, cakeId, quantity, totalPrice, createdAt]);
+        const totalPrice = cakePrice.rows[0].price * quantity;
 
-        return res.sendStatus(201);
+        await repository.createOrder(clientId, cakeId, quantity, totalPrice);
+
+        res.status(201).send("Order created successfully");
 
     } catch (err) {
-        console.error(err);
+        console.error(err.message);
         return res.sendStatus(500);
     }
 }
 
-const formatResult = (rows) => {
+export async function getOrders(req, res) {
 
-    const filterOrders = rows.map(row => {
-        const [clientId, clientName, clientAddress, clientPhone, cakeId, cakeName, cakeImage, cakeDescription, cakePrice, quantity, createdAt, totalPrice] = row;
-
-        return {
-            client: {
-                id: clientId,
-                name: clientName,
-                address: clientAddress,
-                phone: clientPhone,
-            },
-
-            cake: {
-                id: cakeId,
-                name: cakeName,
-                image: cakeImage,
-                description: cakeDescription,
-                price: cakePrice,
-            },
-
-            createdAt,
-            quantity,
-            totalPrice
-        }
-    });
-
-    return filterOrders;
-}
-
-export const getAllOrders = async (req, res) => {
-
-    const dateString = req.query.date;
+    let date = req.query.date;
 
     try {
-        const result = await db.query({
-            text: `
-            SELECT 
-                orders.*,
-                cakes.*,
-                clients.*
-            FROM orders
-            JOIN clients ON clients.id=orders."clientId"
-            JOIN cakes ON cakes.id=orders."cakeId"
-            ${typeof (dateString) === 'string' ? `WHERE orders."createdAt" LIKE '$1'` : ''}
-        `,
-            rowMode: "array"
-        }, typeof (dateString) === 'string' ? [dateString + '%'] : []);
+        const ordersData = await repository.getOrders(date);
 
-        const filterObject = formatResults(result.rows);
-
-        if (filterObject.length === 0) {
-            return res.sendStatus(404);
+        if (ordersData.rowCount === 0) {
+            return res.status(404).send("No orders found");
         }
 
-        return res.send(filterObject).status(200);
+        const orders = ordersData.rows.map(
+            order => (
+                {
+                    client: {
+                        id: order.orderId,
+                        name: order.clientName,
+                        address: order.clientAddress,
+                        phone: order.clientPhone
+                    },
 
-    } catch (error) {
-        console.log(error);
-        return res.sendStatus(500);
-    }
-}
+                    cake: {
+                        id: order.cakeId,
+                        name: order.cakeName,
+                        price: order.cakePrice,
+                        description: order.cakeDescription,
+                        image: order.cakeImage
+                    },
 
-export const getOrderById = async (req, res) => {
+                    orderId: order.orderId,
+                    quantity: order.quantity,
+                    createdAt: order.createdAt,
+                    totalPrice: order.totalPrice,
+                }
+            )
+        )
 
-    const id = req.params.id;
-
-    if (!id) {
-        return res.sendStatus(400);
-    }
-
-    try {
-        const result = await db.query({
-            text: `
-                SELECT 
-                    orders.*,
-                    cakes.*,
-                    clients.*
-                FROM orders
-                JOIN clients ON clients.id = orders."clientId"
-                JOIN cakes ON cakes.id = orders."cakeId"
-                WHERE orders.id = $1;
-            `,
-            rowMode: "array"
-            }, [id]);
-
-        if (result.rowCount === 0) {
-            return res.sendStatus(404);
-        }
-
-        const filterObject = formatResult(result.rows);
-
-        return res.send(filterObject).status(200);
-    }
-    catch (err) {
-        console.error(err);
-        return res.sendStatus(500);
-    }
-}
-
-export const getOrdersByClient = async (req, res) => {
-
-    const id = req.params.id;
-
-    try {
-
-        const clientExists = await db.query(`
-            SELECT * FROM clients 
-            WHERE id = $1
-        `, [id]);
-
-        if (clientExists.rowCount === 0) {
-
-            return res.sendStatus(404);
-        }
-
-        const result = await db.query(`
-            SELECT 
-                orders."id" as "orderId",
-                orders."quantity",
-                orders."createdAt",
-                orders."totalPrice",
-                cakes.name AS cakeName
-            FROM orders
-            JOIN cakes ON cakes.id=orders."cakeId"
-            JOIN clients ON cakes.id=orders."clientId"
-            WHERE clients."id"=$1
-        `, [id]);
-
-        const filterObject = formatResult(result.rows);
-
-        return res.send(filterObject).status(200);
+        res.status(200).json(orders);
 
     } catch (err) {
-        console.log(err);
-        return res.sendStatus(500);
+        console.error(err.message);
+        res.sendStatus(500);
     }
+}
 
+export async function getOrderById(req, res) {
+
+    const orderId = req.params.id;
+
+    try {
+        const orderData = await repository.getOrderById(orderId);
+
+        if (orderData.rowCount === 0) {
+            return res.status(404).send("Order not found");
+        }
+
+        const order = orderData.rows.map(
+            order => (
+                {
+                    client: {
+                        id: order.orderId,
+                        name: order.clientName,
+                        address: order.clientAddress,
+                        phone: order.clientPhone
+                    },
+
+                    cake: {
+                        id: order.cakeId,
+                        name: order.cakeName,
+                        price: order.cakePrice,
+                        description: order.cakeDescription,
+                        image: order.cakeImage
+                    },
+
+                    orderId: order.orderId,
+                    quantity: order.quantity,
+                    createdAt: order.createdAt,
+                    totalPrice: order.totalPrice,
+                }
+            )
+        )
+
+        res.status(200).json(order);
+
+    } catch (err) {
+        console.error(err.message);
+        res.sendStatus(500);
+    }
+}
+
+export async function getOrdersByClient(req, res) {
+
+    const clientId = req.params.id;
+
+    try {
+        const ordersData = await repository.getOrdersByClient(clientId);
+
+        if (ordersData.rowCount === 0) {
+            return res.status(404).send("No orders found");
+        }
+
+        const orders = ordersData.rows.map(
+            order => (
+                {
+                    client: {
+                        id: order.orderId,
+                        name: order.clientName,
+                        address: order.clientAddress,
+                        phone: order.clientPhone
+                    },
+
+                    cake: {
+                        id: order.cakeId,
+                        name: order.cakeName,
+                        price: order.cakePrice,
+                        description: order.cakeDescription,
+                        image: order.cakeImage
+                    },
+
+                    orderId: order.orderId,
+                    quantity: order.quantity,
+                    createdAt: order.createdAt,
+                    totalPrice: order.totalPrice,
+                }
+            )
+        )
+
+        res.status(200).json(orders);
+
+    } catch (err) {
+        console.error(err.message);
+        res.sendStatus(500);
+    }
 }
